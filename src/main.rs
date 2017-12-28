@@ -50,14 +50,14 @@
 # ----------------------------------------------------------
 
 */
+#![allow(dead_code)]
 
-fn main(){
-    let mut plain: [u8; 132] = [0;132];	// room for 132 characters
+  static mut PLAIN: [u8; 132] = [0;132];	// room for 132 characters
 	
 	// string "abc", encoded
-   	// let abc: [u32;4] = [0x9fdd9158, 0x85715808, 0xac73323a, 0]; 
+    static ABC: [u32;4] = [0x9fdd9158, 0x85715808, 0xac73323a, 0]; 
 	
-	let coded: [u32; 132] = [
+	static CODED: [u32; 132] = [
 	0x015e7a47,
     0x2ef84ebb,
     0x177a8db4,
@@ -190,49 +190,70 @@ fn main(){
     0x09a1c6c8,
     0xc2e41061,
         0];
-    let mut seed: u32 = 0x0e0657c1;
+    static mut SEED: u32 = 0x0e0657c1;
+
+fn main(){
 	
-	decode(&mut seed, &coded, &mut plain);
+    let wordarr: u32 = 0;
+    let bytearr: u32 = 0;
+    decode(wordarr, bytearr);
 
 	println!("Decoded string: ");
-	for x in plain.iter(){
-		print!("{}",*x as char);
-	}    
+    
+	unsafe {
+        for x in PLAIN.iter(){
+            print!("{}",*x as char);
+        } 
+    }   
 }
 
-fn decode(mut seed: &mut u32, wordarr: &[u32],bytearr: &mut [u8]) -> u32 {
-	let x = !codgen(&mut seed);
-	let mut r: u32;; 
+fn decode(mut wordarr: u32, mut bytearr: u32) -> u32 {
+    let x = !codgen();
+    let mut r: u32;; 
 	let y: u32;
 	let m: u32;
 
-	if wordarr[0] == 0 {
-		bytearr[0] = 0;
-		r = x;
+	if CODED[wordarr as usize] == 0 {
+		unsafe{
+            PLAIN[bytearr as usize] = 0;
+        }
+        r = x;
 	}
 	else{
-		y = decode(&mut seed, &wordarr[1..], &mut bytearr[1..]);
-		m = x.wrapping_sub(y).wrapping_sub(wordarr[0]);
+        wordarr += 1; bytearr += 1;
+		y = decode(wordarr, bytearr);
+        wordarr -= 1; bytearr -= 1;
+		m = x.wrapping_sub(y).wrapping_sub(CODED[wordarr as usize]);
 		let mut temp = m >> 13; //To aqquire [20..13] 
 		temp = temp & 0xff;
-		bytearr[0] = temp as u8;
-		r = !codgen(&mut seed) + 1;
+        unsafe{
+		    PLAIN[bytearr as usize] = temp as u8;
+        }
+        r = !codgen() + 1;
 		r = x.wrapping_add(y).wrapping_add(m).wrapping_add(r).wrapping_add(5);
 	}
 	r
 }
 
-fn codgen(seed: &mut u32) -> u32{
+fn codgen() -> u32{
     let n: i32; let x: u32; let y: u32;
+    let mut local_seed: u32;
 
-    n = (*seed).count_zeros() as i32;
+    unsafe {
+        local_seed = SEED;
+    }
 
-    x = (*seed).rotate_left(30);  
+    n = local_seed.count_zeros() as i32;
+
+    x = local_seed.rotate_left(30);  
 
 	// y = right arithmeic shift seed 6 bits
-    y = ((*seed as i32) >> 6) as u32; 
+    y = ((local_seed as i32) >> 6) as u32; 
 
-    *seed = x^y;
-	*seed = *seed^(n as u32);
-    *seed ^ 0x464b713e // Return seed XOR mask
+    local_seed = x^y;
+	
+    unsafe{
+        SEED = local_seed^(n as u32);
+        SEED ^ 0x464b713e // Return seed XOR mask
+    }
 }
